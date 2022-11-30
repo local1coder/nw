@@ -1,0 +1,1128 @@
+$autoload['libraries'] = array('database','session','common','user_agent', 'pagination', 'paginationall');
+$autoload['helper'] = array('url');
+$autoload['model'] = array('Crud_model');
+
+date_default_timezone_set('Asia/Kolkata');
+class Authentication extends CI_Controller 
+{
+	
+	function __construct() 
+	{
+		parent::__construct(); 
+	}
+   
+    
+   public function index()
+	{
+		if($this->common->is_logged_in())
+		{   //$list_detail['temporary_data'] = $this->Crud_model->fetchalldata('temporary_data');
+		    $list_detail['temporary_data'] = $this->Crud_model->datanwnew('temporary_data');
+        
+    
+    
+    $this->load->view('temporary_data.php', $list_detail);
+    }
+    
+    
+    
+    
+    
+    
+    
+    public function logout()
+	{   
+		if($this->common->is_logged_in())
+		{
+		    $user_data = $this->session->all_userdata(); 
+	        
+	        $return_id = $this->session->userdata['userdetails']['return_id'];
+	        $update['logout_at'] = date('Y-m-d H:i:s');
+	        
+	        $this->Crud_model->updatetable('user_logs', $update, 'id', $return_id);
+	        foreach ($user_data as $key => $value) 
+		     {
+		            if ($key != 'session_id' && $key != 'ip_address' && $key != 'user_agent' && $key != 'last_activity') {
+		                $this->session->unset_userdata($key);
+		     }
+		    }
+		    
+		    
+		    $this->session->sess_destroy();
+		    $this->load->view('login.php');
+	     }
+	     else{
+	     	$this->load->view('login.php');
+	     }
+     }
+     
+     
+     
+     public function auth_login()
+	{
+		if($this->input->is_ajax_request() && $this->input->post('type') == 'login')
+		{
+			
+			$email = trim($this->input->post('email'));
+
+			if(empty($email)){
+
+				$return['status']= 'fail';
+				$return['message'] = 'Please enter valid email address';
+				$ret = json_encode($return);
+				echo $ret;die();
+			}
+
+			if (!filter_var($email, FILTER_VALIDATE_EMAIL)) 
+			{
+                $return['status']= 'fail';
+				$return['message'] = 'Please enter valid email address';
+				$ret = json_encode($return);
+				echo $ret;die();
+            }
+
+			$password = trim($this->input->post('password'));
+
+			if(empty($password)){
+
+				$return['status']= 'fail';
+				$return['message'] = 'Please enter valid password';
+				$ret = json_encode($return);
+				echo $ret;die();
+			}
+			$validate = $this->Crud_model->validatelogin($email,$password);
+
+			if($validate != 0)
+			{
+				$sessionarray['email']= $email;
+				$sessionarray['userid']= $validate;  
+                $ip = $this->input->ip_address();
+                $fetch_user_details = $this->Crud_model->fetchtabledataone('users', 'id', $validate);
+                $insert['user_id'] = $fetch_user_details[0]->id;
+                $insert['ip_address'] = $ip;
+                $insert['login_at'] = date('Y-m-d H:i:s');
+
+                $return_id = $this->Crud_model->insertData('user_logs', $insert);
+                $sessionarray['return_id'] = $return_id; 
+                $sessionarray['session_id'] = session_id();
+
+
+				$this->session->set_userdata('userdetails',$sessionarray);
+				$return['status']= 'success';
+				$return['message']= 'Successfully LoggedIn.';
+				if($this->session->userdata('redirect'))
+				{
+					$return['redirect'] = $this->session->userdata('redirect');
+				}
+				else
+				{
+					$return['redirect'] = base_url();
+				}
+				$ret = json_encode($return);
+				echo $ret;die();
+            }
+			else
+			{
+				$return['status']= 'fail';
+				$return['message'] = 'Invalid Credentials';
+				$ret = json_encode($return);
+				echo $ret;die();
+			}
+		}
+	    else
+		{
+			redirect('not_found');
+		
+		}
+	 }
+	
+   
+
+
+	public function create_account()
+	{
+        $email = $this->input->post('email');
+        
+        $userdata = explode('@',$email);
+        $insert['name'] =  $userdata[0];
+        $insert['email'] = $email;
+        $password = $this->input->post('password');
+        $options = array('cost' => 10);
+        $hash = password_hash($password, PASSWORD_DEFAULT, $options);
+        $insert['password'] = $hash;
+        $insert['user_img'] = 'default.jpg';
+        $insert['status'] = 1;
+        $insert['updated_at'] = date('Y-m-d H:i:s');
+        $done = $this->Crud_model->insertData('users',$insert);
+        if($done != 0)
+        {
+          $data['status'] = true;
+          $data['message'] = 'Account created successfully';
+          print_r(json_encode($data));
+        }
+        
+        else
+        {
+          $data['status'] = false;
+          $data['message'] = 'something went wrong.Not able to create your account';
+          print_r(json_encode($data));
+        }
+    }
+    
+    
+    
+    
+    <?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+class File extends CI_Controller 
+{
+	
+	function __construct() 
+	{
+		parent::__construct(); 
+	}
+
+	
+
+
+
+	 function upload()
+	 {
+        if(!empty($_FILES)){ 
+            
+            
+            // File upload configuration 
+            $uploadPath = 'uploads/'; 
+            $config['upload_path'] = $uploadPath; 
+            $config['allowed_types'] = '*'; 
+            $config['file_name'] = time().'_'.$_FILES['file_info']['name']; 
+             
+            // Load and initialize upload library 
+            $this->load->library('upload', $config); 
+            $this->upload->initialize($config); 
+             
+            // Upload file to the server 
+            if($this->upload->do_upload('file_info'))
+            { 
+                $fileData = $this->upload->data();   
+                $url = "http://localhost/uploads/".$fileData['file_name']; 
+                
+                $nwdata['url'] = $url;
+                $nwdata['status'] = 'success';
+                echo json_encode($nwdata); die();
+            } 
+        } 
+     }
+}
+
+
+
+
+
+
+
+
+
+<form enctype="multipart/form-data" class="jNice" accept-charset="utf-8" method="post" action="http://xxxx.dev/admin/add_estates">              
+    <fieldset>      
+            <label>Title * : </label>                       
+            <input type="text" class="text-long" value="" name="title">
+
+            <label>Description : </label>                       
+            <textarea class="mceEditor" rows="10" cols="40" name="description"></textarea>
+
+            <label>Image : </label>                     
+            <input type="file" multiple="" name="images[]">                             
+
+            <button class="button-submit" type="submit" name="save" id="">Save</button>
+    </fieldset>         
+</form>
+
+
+38
+
+
+I change upload method with images[] according to @Denmark.
+
+    private function upload_files($path, $title, $files)
+    {
+        $config = array(
+            'upload_path'   => $path,
+            'allowed_types' => 'jpg|gif|png',
+            'overwrite'     => 1,                       
+        );
+
+        $this->load->library('upload', $config);
+
+        $images = array();
+
+        foreach ($files['name'] as $key => $image) {
+            $_FILES['images[]']['name']= $files['name'][$key];
+            $_FILES['images[]']['type']= $files['type'][$key];
+            $_FILES['images[]']['tmp_name']= $files['tmp_name'][$key];
+            $_FILES['images[]']['error']= $files['error'][$key];
+            $_FILES['images[]']['size']= $files['size'][$key];
+
+            $fileName = $title .'_'. $image;
+
+            $images[] = $fileName;
+
+            $config['file_name'] = $fileName;
+
+            $this->upload->initialize($config);
+
+            if ($this->upload->do_upload('images[]')) {
+                $this->upload->data();
+            } else {
+                return false;
+            }
+        }
+
+        return $images;
+    }
+
+
+
+
+
+
+
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Common{ 
+
+    private $CI;
+    private $userid;
+
+    function __construct() 
+    {
+        $this->CI =& get_instance();
+        if(isset($this->CI->session->userdata['userdetails']['userid']))
+        {
+            
+
+            $this->userid = $this->CI->session->userdata['userdetails']['userid'];
+        }
+    }
+
+
+	
+
+
+    public function is_logged_in()
+    {
+       $CI =& get_instance();
+       
+       if(isset($CI->session->userdata['userdetails']['email']))
+        {
+        	$userid = $CI->session->userdata['userdetails']['userid'];
+            $row = $CI->Crud_model->fetchtabledataone('users','id',$userid);
+        	if($row[0]->status == 1)
+        		return true;
+        	else
+        		return false;
+        }
+        else
+        {
+        	return false;
+        }
+    }
+
+
+}
+
+
+
+
+
+
+
+<?php
+class Crud_model extends CI_Model{
+
+	function validatelogin($username,$password){
+		$this->db->where('email',$username);
+		$this->db->where('status','1');
+		$query = $this->db->get('users');
+		if($query->num_rows() == 1)
+		{
+			$result = $query->result();
+			if(password_verify($password, $result[0]->password))
+			{
+				return $result[0]->id;
+			}
+			else
+			{
+				return 0;
+			}
+		}
+		else
+		{
+			return 0;
+		}
+
+	}
+
+	
+
+    function validateAuthorization($email,$password){
+		$this->db->where('email',$email);
+		$this->db->where('authorization_status','1');
+		$query = $this->db->get('users');
+		if($query->num_rows() == 1)
+		{
+			$result = $query->result();
+			if(password_verify($password, $result[0]->password))
+			{
+				return $result[0]->id;
+			}
+			else
+			{
+				return 0;
+			}
+		}
+		else
+		{
+			return 0;
+		}
+    }
+
+	
+
+
+	function fetchtabledataone($tablename,$col,$colval){
+		$this->db->where($col,$colval);
+		$result = $this->db->get($tablename);
+		$this->db->order_by("id", "desc");
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result() as $row) {
+				$ret[] = $row;
+			}
+
+			if(isset($ret))
+				return $ret;
+		}
+		else
+			return 0;
+	}
+
+	
+
+
+	function fetchtabledatatwocount($tablename,$col1,$colval1,$colval2){
+		$this->db->select('id');
+		$this->db->from($tablename);
+		$this->db->where($col1,$colval1);
+		$this->db->where('DATE(created)',$colval2);
+		$result = $this->db->get();
+		$this->db->order_by("id", "desc");
+		if($result->num_rows() >= 1)
+		{
+			return $result->num_rows();
+		}
+		else
+			return 0;
+	}
+  
+
+
+
+
+
+
+
+
+
+  
+
+
+
+  function fetchtabledatatwocountadata($tablename,$col1,$colval1,$colval2)
+  {
+		$this->db->select('id');
+		$this->db->from($tablename);
+		$this->db->where($col1,$colval1);
+		$this->db->where($col2,$colval2);
+		$result = $this->db->get();
+		$this->db->order_by("id", "desc");
+		if($result->num_rows() >= 1)
+		{
+			return $result->num_rows();
+		}
+		else
+			return 0;
+	}
+
+
+	function fetchtabledatatwo($tablename,$col1,$colval1,$col2,$colval2){
+		$this->db->where($col1,$colval1);
+		$this->db->where($col2,$colval2);
+		$result = $this->db->get($tablename);
+		$this->db->order_by("id", "desc");
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result() as $row) {
+				$ret[] = $row;
+			}
+
+			if(isset($ret))
+				return $ret;
+		}
+		else
+			return 0;
+	}
+
+	function fetchtabledatathree($tablename,$col1,$colval1,$col2,$colval2,$col3,$colval3){
+		$this->db->where($col1,$colval1);
+		$this->db->where($col2,$colval2);
+		$this->db->where($col3,$colval3);
+		$result = $this->db->get($tablename);
+		$this->db->order_by("id", "desc");
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result() as $row) {
+				$ret[] = $row;
+			}
+
+			if(isset($ret))
+				return $ret;
+		}
+		else
+			return 0;
+	}
+
+	function fetchtabledatafour($tablename,$col1,$colval1,$col2,$colval2,$col3,$colval3,$col4,$colval4){
+		$this->db->where($col1,$colval1);
+		$this->db->where($col2,$colval2);
+		$this->db->where($col3,$colval3);
+		$this->db->where($col4,$colval4);
+		$result = $this->db->get($tablename);
+		$this->db->order_by("id", "desc");
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result() as $row) {
+				$ret[] = $row;
+			}
+
+			if(isset($ret))
+				return $ret;
+		}
+		else
+			return 0;
+	}
+
+	function fetchtabledatafourlimit($tablename,$col1,$colval1,$col2,$colval2,$col3,$colval3,$col4,$colval4,$limit){
+		$this->db->where($col1,$colval1);
+		$this->db->where($col2,$colval2);
+		$this->db->where($col3,$colval3);
+		$this->db->where($col4,$colval4);
+		$this->db->limit($limit);
+		$result = $this->db->get($tablename);
+		$this->db->order_by("id", "desc");
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result() as $row) {
+				$ret[] = $row;
+			}
+
+			if(isset($ret))
+				return $ret;
+		}
+		else
+			return 0;
+	}
+
+
+	function fetchalldata($tablename){
+		$this->db->order_by("id", "desc");
+		$result = $this->db->get($tablename);
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result() as $row) {
+				$completerow[]= $row;
+			}
+
+			return $completerow;
+		}
+
+		else
+			return 0;
+    } 
+
+
+
+
+    /////////////////////////////////////////////////
+
+    
+
+
+
+
+
+    
+
+
+
+
+
+      //--------------commneted starts----------------------------//
+     function datanwNewunarchieve($tablename) 
+     {
+        $sql= "SELECT * FROM $tablename WHERE `status0`= 1 AND `archieve_status`=0  ORDER BY `fabric_code` DESC";
+	      $result = $this->db->query($sql);
+	      return $result->result();    
+     } 
+      //--------------commneted ends----------------------------//
+
+     function datanwnew($tablename)
+    {
+      $sql= "SELECT * FROM $tablename WHERE `status0`= 1 AND `archieve_status`=1  ORDER BY `fabric_code` DESC LIMIT 10";
+	    $result = $this->db->query($sql);
+	    //return $result->num_rows();
+	    return $result->result();
+    }
+
+
+     function datanwnewallnedatalall($tablename, $offset, $limit)
+    {
+      $sql= "SELECT * FROM $tablename WHERE `status0`= 1 AND `archieve_status`=1 ORDER BY `fabric_code` DESC LIMIT $offset,$limit";
+	    $result = $this->db->query($sql);
+	    return $result->result();
+    }
+    
+    
+     function datanwnewall($tablename, $data , $offset, $limit)
+    {
+      $sql= "SELECT * FROM $tablename WHERE `status0`= 1  AND `archieve_status`=1 ORDER BY `fabric_code` DESC LIMIT $offset,$limit";
+	    $result = $this->db->query($sql);
+	    return $result->result();
+    }
+
+
+
+
+
+
+
+     function datanwnewalldata($tablename, $data)
+    {
+      $sql= "SELECT * FROM $tablename  WHERE `fabric_code` LIKE '$data' ORDER BY `fabric_code` DESC";
+	    $result = $this->db->query($sql);
+	    return $result->result();
+    }
+
+     
+
+
+     function datanwnewalldesc($tablename, $offset, $limit)
+     {
+      $sql= "SELECT * FROM `fabric_temporary_data` WHERE `status0`=1 AND `archieve_status`=1 ORDER BY id DESC LIMIT $offset,$limit";
+      $result = $this->db->query($sql);
+	    return $result->result();
+     }
+
+
+     function datanwnewalldescnew($tablename, $offset, $limit)
+     {
+      $sql= "SELECT * FROM `fabric_temporary_data` WHERE `status0`=1 AND `archieve_status`=1 ORDER BY id ASC LIMIT $offset,$limit";
+      $result = $this->db->query($sql);
+	    return $result->result();
+     }
+
+
+
+
+
+
+     function datanwnewalldescnewnw($tablename, $offset, $limit)
+     {
+      $sql= "SELECT * FROM `fabric_temporary_data` WHERE `status0`=1 AND `archieve_status`=1 AND `total_qty` <= 50 ORDER BY total_qty ASC LIMIT $offset,$limit";
+      $result = $this->db->query($sql);
+      return $result->result();
+     }
+       
+
+       function fetchalldatawithconditionfabric($tablename, $col, $colval){
+    	   $this->db->where($col, $colval);
+		     $this->db->order_by("fabric_code", "desc");
+		     $result = $this->db->get($tablename);
+		     if($result->num_rows() >= 1)
+		     {
+			    foreach ($result->result() as $row) {
+				    $completerow[]= $row;
+			    }
+
+			     return $completerow;
+		      }
+
+		     else
+			   return 0;
+        }
+
+
+
+     /////////////////////////////////////////////////////////////////////
+
+    function fetchalldatawithcondition($tablename, $col, $colval){
+    	$this->db->where($col, $colval);
+		$this->db->order_by("id", "desc");
+		$result = $this->db->get($tablename);
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result() as $row) {
+				$completerow[]= $row;
+			}
+
+			return $completerow;
+		}
+
+		else
+			return 0;
+    }
+
+
+
+    function fetchalldatawithconditionfabricdata($tablename, $col, $colval){
+    	$this->db->where($col, $colval);
+		$this->db->order_by("id", "asc");
+		$result = $this->db->get($tablename);
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result() as $row) {
+				$completerow[]= $row;
+			}
+
+			return $completerow;
+		}
+
+		else
+			return 0;
+    }
+
+
+
+
+
+    function fetchalldatawithnwcondition($tablename, $col, $colval){
+    	$this->db->where($col, $colval);
+		$this->db->order_by("id", "desc");
+		$result = $this->db->get($tablename);
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result_array() as $row) {
+				$completerow[]= $row;
+			}
+
+			return $completerow;
+		}
+
+		else
+			return 0;
+    }
+
+
+
+
+
+	 function insertData($table='',$insertData=array())
+	 {
+
+		$result=$this->db->insert($table,$insertData);
+		if($result)
+			return $this->db->insert_id();
+		else
+			return 0;
+	 }
+
+	 function updatetable($table='', $updateData = array(), $col, $colval)
+	 {
+	 	$this->db->where($col, $colval);
+        $check = $this->db->update($table, $updateData);
+        if($check)
+        {
+        	$this->db->select('id');
+        	$this->db->where($col, $colval);
+        	$ret = $this->db->get($table);
+        	if($ret->num_rows() >= 1)
+        	{
+        		foreach ($ret->result()as $res) {
+        			return $res->id;
+        		}
+        	}
+        }
+        else{
+        	return 0;
+        }
+	 }
+  
+  
+  
+  
+   
+    
+    
+    
+    
+     function updatetablenwdata($table='', $updateData = array(), $col1, $colval1, $col2, $colval2)
+	 {
+	 	$this->db->where($col1, $colval1);
+	 	$this->db->where($col2, $colval2);
+        $check = $this->db->update($table, $updateData);
+        if($check)
+        {
+        	$this->db->select('id');
+        	$this->db->where($col1, $colval1);
+        	$this->db->where($col2, $colval2);
+        	$ret = $this->db->get($table);
+        	if($ret->num_rows() >= 1)
+        	{
+        		foreach ($ret->result()as $res) {
+        			return $res->id;
+        		}
+        	}
+        }
+        else{
+        	return 0;
+        }
+	 }
+	 
+	function deleterows($tablename, $array){
+		$done = $this->db->delete($tablename, $array);
+		if($done)
+		{
+			return 1;
+		}
+
+		else{
+			return 0;
+		}
+	}
+
+	function deleterowsarray($tablename, $type, $array){
+		$this->db->where_in($type, $array);
+		$done = $this->db->delete($tablename);
+		if($done)
+		{
+			return 1;
+		}
+
+		else{
+			return 0;
+		}
+	}
+
+
+	function search($table,$search)
+	{
+		$this->db->where('MATCH (name) AGAINST ("'.$search.'")', NULL, FALSE);
+		$result = $this->db->get($table);
+		if($result)
+		{
+
+			return $result->result();
+		}
+		else
+		{
+			return 0;
+		}
+	}
+
+
+	function search_fabric_code($table,$search)
+	{
+		$this->db->where('MATCH (fabric_code) AGAINST ("'.$search.'")', NULL, FALSE);
+		$result = $this->db->get($table);
+		if($result)
+		{
+
+			return $result->result();
+		}
+		else
+		{
+			return 0;
+		}
+	}
+
+
+
+
+
+
+
+	function search_info_data($table,$search)
+	{
+		$this->db->where('MATCH (info_data) AGAINST ("'.$search.'")', NULL, FALSE);
+		$result = $this->db->get($table);
+		if($result)
+		{
+
+			return $result->result();
+		}
+		else
+		{
+			return 0;
+		}
+	}
+
+	function checkforadata($table, $matchfile, $dataval)
+	{
+	 	$this->db->where($matchfile,$dataval);
+		$result = $this->db->get($table);
+		if(count($result->result()) >=1)
+		{
+			return 1;
+		}
+		else
+			return 0;
+	}
+
+	function jointable($maintable,$jointable, $jointablecol, $maintablecol,$col,$val)
+	{
+		$this->db->select('*');
+		$this->db->from($maintable);
+		$this->db->join($jointable, $jointablecol.'='.$maintablecol);
+		$this->db->where($col, $val);
+		$result = $this->db->get();
+		if($result->num_rows() >= 1)
+		{
+			foreach ($result->result() as $row) {
+				$ret[] = $row;
+			}
+
+			if(isset($ret))
+				return $ret;
+		}
+		else
+			return 0;
+	}
+    
+
+	function countone($tablename,$col1,$colval1){
+		$this->db->where($col1,$colval1);
+		$result = $this->db->get($tablename);
+		$this->db->order_by("id", "desc");
+		return $result->num_rows();
+	}
+
+	function counttwo($tablename,$col1,$colval1,$col2,$colval2){
+		$this->db->where($col1,$colval1);
+		$this->db->where($col2,$colval2);
+		$result = $this->db->get($tablename);
+		$this->db->order_by("id", "desc");
+		return $result->num_rows();
+	}
+
+	function counttwo_date($tablename,$col1,$colval1,$col2,$colval2){
+		$sql= "SELECT * FROM $tablename WHERE $col1 = $colval1 AND $col2 BETWEEN '$colval2 00:00:00' AND '$colval2 23:59:59' ORDER BY `id` DESC";
+		$result = $this->db->query($sql);
+		return $result->num_rows();
+	} 
+	
+	
+	
+	
+	function search_data($table, $col, $search_data)
+	 {    
+	 	
+	 	$this->db->where($col, $search_data);
+	 	$this->db->where('is_active',1);
+		$result = $this->db->get($table);
+        if($result->num_rows() >= 1)
+		{
+		
+		   return 1;
+		}
+	    else
+		{
+			return 0;
+		}
+	 }
+
+
+
+	 
+
+
+    
+
+
+	 function delete($table,$id)
+	 {
+	 	$this->db->where('id', $id);
+        $done = $this->db->delete($table);
+        if($done)
+		{
+			return 1;
+		}
+
+		else{
+			return 0;
+		}
+	 }
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   function search_nw($table, $col, $search_data)
+   {    
+	 	
+	 	$this->db->where($col, $search_data);
+	 	$this->db->where('status',1);
+		$result = $this->db->get($table);
+        if($result->num_rows() >= 1)
+		{
+		
+		   return 1;
+		}
+	    else
+		{
+			return 0;
+		}
+  }
+} 
+?>
+  
+  
+  
+  <input type="text" name="file_info" id="file_info" disabled="true" onchange="fildata()"> 
+                                 <!--<input type="hidden" name="file_info_newdata" id="file_info_newdata" value="file_info_newdata">-->
+                                 
+                                 
+                                  <input type="hidden" name="file_info_newdata" id="file_info_newdata" value="<?php 
+
+                                                   if((strlen($basic_data->file_info_newdata)) > 0)
+                                                   {
+                                                      echo $basic_data->file_info_newdata;
+                                                   }
+                                                   else
+                                                   {
+                                                     
+                                                      echo "file_info_newdata";
+                                                   }?>">
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   <script type="text/javascript">
+   
+
+
+
+  
+
+  
+
+  function login()
+  {     var baseurl = "https:///index.php/";
+       var email = $("#email").val();
+       var password = $("#password").val();
+       $.ajax({
+            url: baseurl + 'login',
+            method: 'POST',
+            data: {
+                type: 'login',
+                email: email,
+                password: password,
+                },
+            success: function(remes){
+                    
+                    var mydata = $.parseJSON(remes);
+                    if(mydata.status == 'success')
+                    {   
+                        toastr.success(mydata.message);
+                        window.location = mydata.redirect;
+                    
+                    }
+                    else
+                    {    
+                        toastr.error(mydata.message);
+                    } }
+        });
+       return false;
+    }
+   
+   /*function nw()
+   {
+       var nw = $("#nw").val();  
+       if(nw == null || nw.length === 0)
+       {
+         
+           $(".nw").css("display","block");
+           $("#nw").css('border', '1px solid red');
+       }
+       else if(nw.length > 0)
+       {
+           $(".nw").css("display","none");
+           $("#nw").css('border', '1px solid #ececec');
+       } 
+   }*/
+   
+   
+   <script type="text/javascript">
+     /*function fildata()
+     {
+         
+            //var fileName = e.target.files[0].name;
+            //var formData = new FormData("file_info")[0]; 
+            //formData.append('file_info', fileName);
+            alert("hey");
+            var name = document.getElementById("file_info").files[0].name;
+            var form_data = new FormData();
+            var ext = name.split('.').pop().toLowerCase();
+            form_data.append("file_info", document.getElementById('file_info').files[0]);
+            console.log(form_data);
+            var baseurl = "http://localhost/nw";
+
+            $.ajax({
+                url:baseurl + 'upload',
+                method:"POST",
+                data: form_data,
+                contentType: false,
+                cache: false,
+                processData: false,
+                beforeSend:function()
+                {
+                  var loader = baseurl+ 'images/loader.gif';
+                  $("#loaderdata").attr("src", loader);
+                  $("#loaderdata").css("display","block");
+                },   
+                success:function(data)
+                { 
+                  var nwdata = JSON.parse(data);
+                  console.log(nwdata);
+                    window.setTimeout(function(){
+                    $("#file_info_newdata").val('');
+                    $("#file_info_newdata").val(nwdata.url);
+                    var alldata = $("#file_info_newdata").val();
+                    $("#infosrc").attr("src", alldata);
+                    $("#loaderdata").attr("src", "");
+                    $("#loaderdata").css("display","none");
+                    $(".imgRmveBtn").css("display","block");
+                    }, 1000);
+                
+                }
+            });
+        
+      
+    }*/
+</script>
+    
+    
+   
+   
+   
+   
+   
+   
+   
+   
